@@ -1,97 +1,292 @@
+AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TG Music Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Telegram Music Hub</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="https://w.soundcloud.com/player/api.js"></script>
     
     <style>
+        :root {
+            /* Переменные темы Telegram (или дефолтные) */
+            --bg-color: var(--tg-theme-bg-color, #121212);
+            --text-color: var(--tg-theme-text-color, #ffffff);
+            --hint-color: var(--tg-theme-hint-color, #b3b3b3);
+            --accent-color: var(--tg-theme-button-color, #1db954); /* Зеленый как у Spotify */
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #1e1e1e);
+        }
+
         body {
-            background-color: var(--tg-theme-bg-color, #1e1e1e);
-            color: var(--tg-theme-text-color, #ffffff);
-            font-family: sans-serif;
-            text-align: center;
-            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden; /* Основной экран не скроллится */
         }
-        button {
-            background-color: var(--tg-theme-button-color, #3390ec);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            padding: 15px 20px;
-            border-radius: 10px;
+
+        /* Поиск */
+        .search-container {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            padding-bottom: 10px;
+            z-index: 10;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 25px;
+            border: 1px solid var(--secondary-bg);
+            background-color: var(--secondary-bg);
+            color: var(--text-color);
             font-size: 16px;
-            margin: 10px;
-            cursor: pointer;
-            width: 80%;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
         }
-        /* Прячем оригинальные плееры, оставляя только звук */
-        #players { position: absolute; top: -9999px; left: -9999px; }
+
+        #search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Список результатов */
+        #results-list {
+            flex-grow: 1;
+            overflow-y: auto; /* Скроллится только список */
+            margin-top: 10px;
+            padding-bottom: 80px; /* Место для плеера */
+        }
+
+        .track-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .track-item:active {
+            background-color: var(--secondary-bg);
+        }
+
+        .track-thumb {
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            margin-right: 15px;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .track-info {
+            flex-grow: 1;
+        }
+
+        .track-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 2px;
+            /* Обрезка длинного текста */
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .track-channel {
+            font-size: 14px;
+            color: var(--hint-color);
+        }
+
+        /* Мини-плеер снизу */
+        .player-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--secondary-bg);
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
+            transform: translateY(100%); /* Спрятан по умолчанию */
+            transition: transform 0.3s ease-out;
+            z-index: 20;
+        }
+
+        .player-bar.active {
+            transform: translateY(0);
+        }
+
+        .current-track-info {
+            display: flex;
+            align-items: center;
+            max-width: 70%;
+        }
+
+        .controls button {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+
+        /* Прячем сам Iframe */
+        #yt-player { position: absolute; top: -9999px; }
+
+        /* Лоадер */
+        .loader { color: var(--hint-color); text-align: center; margin-top: 20px; display: none; }
     </style>
 </head>
 <body>
 
-    <h2>Мой Музыкальный Плеер</h2>
-    <p id="track-name">Ничего не играет</p>
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="Поиск музыки в YouTube...">
+    </div>
 
-    <button onclick="playYouTube('ScMzIvxBSi4')">▶️ Включить хит с YouTube</button>
-    <button onclick="playSoundCloud('https://api.soundcloud.com/tracks/293')">▶️ Включить трек с SoundCloud</button>
-    
-    <br><br>
-    <button onclick="pauseAll()" style="background-color: #ff4d4d;">⏸ Пауза</button>
+    <div class="loader" id="loader">Поиск...</div>
+    <div id="results-list">
+        </div>
 
-    <div id="players">
-        <div id="yt-player"></div>
-        <iframe id="sc-player" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" 
-                src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293&auto_play=false">
-        </iframe>
+    <div id="yt-player"></div>
+
+    <div class="player-bar" id="player-bar">
+        <div class="current-track-info">
+            <div class="track-thumb" id="current-thumb" style="width: 40px; height: 40px; margin-right: 10px;"></div>
+            <div class="track-info">
+                <div class="track-title" id="current-title" style="font-size: 14px;"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <button onclick="togglePlay()" id="play-btn">⏸</button>
+        </div>
     </div>
 
     <script>
-        // Инициализация Telegram Web App
-        const tg = window.Telegram.WebApp;
-        tg.expand(); // Открываем на весь экран
+        // --- КОНФИГУРАЦИЯ ---
+        // !!! ВСТАВЬ СВОЙ КЛЮЧ СЮДА !!!
+        const YOUTUBE_API_KEY = 'AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4'; 
+        // --------------------
 
-        // --- Настройка YouTube ---
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // На весь экран
+        tg.ready();
+
         let ytPlayer;
+        let isPlaying = false;
+
+        // Инициализация YouTube API
         function onYouTubeIframeAPIReady() {
             ytPlayer = new YT.Player('yt-player', {
-                height: '0', width: '0',
-                videoId: '', // Пусто при старте
+                height: '0', width: '0', videoId: '',
                 events: {
-                    'onReady': () => console.log('YouTube готов')
+                    'onReady': () => console.log('YT Готов'),
+                    'onStateChange': onPlayerStateChange
                 }
             });
         }
 
-        function playYouTube(videoId) {
-            pauseAll();
-            document.getElementById('track-name').innerText = "Играет с YouTube...";
+        // Поиск при нажатии Enter
+        document.getElementById('search-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                searchMusic(this.value);
+            }
+        });
+
+        // Функция поиска (общается с YouTube API)
+        async function searchMusic(query) {
+            if (!query) return;
+            if (YOUTUBE_API_KEY === 'ЗАМЕНИ_МЕНЯ_НА_API_KEY') {
+                alert('Сначала добавь YouTube API Key в код!');
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            const list = document.getElementById('results-list');
+            
+            list.innerHTML = '';
+            loader.style.display = 'block';
+
+            try {
+                const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=15&key=${YOUTUBE_API_KEY}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+
+                loader.style.display = 'none';
+
+                if (data.items) {
+                    data.items.forEach(item => {
+                        createTrackItem(item);
+                    });
+                }
+            } catch (error) {
+                console.error(error);
+                loader.innerText = 'Ошибка поиска';
+            }
+        }
+
+        // Создание элемента трека в списке
+        function createTrackItem(item) {
+            const list = document.getElementById('results-list');
+            const snippet = item.snippet;
+            const videoId = item.id.videoId;
+
+            const div = document.createElement('div');
+            div.className = 'track-item';
+            div.onclick = () => playTrack(videoId, snippet.title, snippet.thumbnails.default.url);
+
+            div.innerHTML = `
+                <div class="track-thumb" style="background-image: url('${snippet.thumbnails.default.url}')"></div>
+                <div class="track-info">
+                    <div class="track-title">${snippet.title}</div>
+                    <div class="track-channel">${snippet.channelTitle}</div>
+                </div>
+            `;
+            list.appendChild(div);
+        }
+
+        // Логика воспроизведения
+        function playTrack(videoId, title, thumbUrl) {
             ytPlayer.loadVideoById(videoId);
             ytPlayer.playVideo();
+            isPlaying = true;
+
+            // Обновляем панель плеера
+            document.getElementById('current-title').innerText = title;
+            document.getElementById('current-thumb').style.backgroundimage = `url('${thumbUrl}')`;
+            document.getElementById('player-bar').classList.add('active');
+            document.getElementById('play-btn').innerText = '⏸';
         }
 
-        // --- Настройка SoundCloud ---
-        let scPlayer = SC.Widget(document.getElementById('sc-player'));
-
-        function playSoundCloud(trackUrl) {
-            pauseAll();
-            document.getElementById('track-name').innerText = "Играет с SoundCloud...";
-            scPlayer.load(trackUrl, {
-                auto_play: true,
-                callback: function() {
-                    scPlayer.play();
-                }
-            });
+        function togglePlay() {
+            if (isPlaying) {
+                ytPlayer.pauseVideo();
+                document.getElementById('play-btn').innerText = '▶️';
+            } else {
+                ytPlayer.playVideo();
+                document.getElementById('play-btn').innerText = '⏸';
+            }
+            isPlaying = !isPlaying;
         }
 
-        // --- Общее управление ---
-        function pauseAll() {
-            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-            scPlayer.pause();
-            document.getElementById('track-name').innerText = "Пауза";
+        function onPlayerStateChange(event) {
+            // Если видео закончилось (YT.PlayerState.ENDED = 0)
+            if (event.data === 0) {
+                document.getElementById('play-btn').innerText = '▶️';
+                isPlaying = false;
+            }
         }
     </script>
 </body>
