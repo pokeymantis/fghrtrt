@@ -3,35 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TG Music Proxy</title>
+    <title>TG Music Cloud</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://w.soundcloud.com/player/api.js"></script>
+    
     <style>
-        /* Оставляем тот же красивый дизайн, что был раньше */
-        :root { --bg-color: #121212; --text-color: #ffffff; --accent-color: #1db954; --secondary-bg: #1e1e1e; }
-        body { background: var(--bg-color); color: var(--text-color); font-family: sans-serif; margin: 0; padding: 15px; height: 100vh; display: flex; flex-direction: column; }
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --accent-color: #ff5500; /* Фирменный оранжевый SoundCloud */
+            --secondary-bg: #1e1e1e;
+        }
+        body { background: var(--bg-color); color: var(--text-color); font-family: sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; height: 100vh; }
         #search-input { width: 100%; padding: 12px; border-radius: 20px; border: none; background: var(--secondary-bg); color: white; margin-bottom: 10px; box-sizing: border-box; }
+        
         .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
         .tab { padding: 8px 15px; border-radius: 15px; cursor: pointer; background: var(--secondary-bg); font-size: 14px; }
         .tab.active { background: var(--accent-color); }
+
         #main-content { flex-grow: 1; overflow-y: auto; padding-bottom: 140px; }
-        .track-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #333; }
-        .track-thumb { width: 45px; height: 45px; border-radius: 5px; margin-right: 12px; }
+        .track-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #333; cursor: pointer; }
+        .track-thumb { width: 45px; height: 45px; border-radius: 5px; margin-right: 12px; object-fit: cover; }
         .track-info { flex-grow: 1; }
-        .add-btn { background: none; border: none; color: var(--accent-color); font-size: 20px; cursor: pointer; }
-        .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #282828; padding: 15px; display: none; flex-direction: column; z-index: 100; }
+        .add-btn { background: none; border: none; color: var(--accent-color); font-size: 24px; cursor: pointer; padding: 0 10px; }
+
+        .player-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: #282828; padding: 15px;
+            display: none; flex-direction: column;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+        }
         .player-bar.active { display: flex; }
-        .progress-container { display: flex; align-items: center; gap: 10px; width: 100%; margin: 10px 0; }
-        #progress-bar { flex-grow: 1; accent-color: var(--accent-color); }
-        .controls { display: flex; align-items: center; justify-content: center; gap: 25px; }
-        .controls button { background: none; border: none; color: white; font-size: 28px; cursor: pointer; }
+
+        .controls { display: flex; align-items: center; justify-content: center; gap: 30px; margin-top: 10px; }
+        .controls button { background: none; border: none; color: white; font-size: 30px; cursor: pointer; }
+        
+        /* Скрытый виджет для проигрывания */
+        #sc-iframe { position: absolute; top: -9999px; }
     </style>
 </head>
 <body>
 
-    <input type="text" id="search-input" placeholder="Поиск музыки (без VPN)...">
+    <input type="text" id="search-input" placeholder="Поиск в SoundCloud...">
+    
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('search')">Поиск</div>
-        <div class="tab" onclick="switchTab('playlist')">Плейлист ❤️</div>
+        <div class="tab active" id="tab-search" onclick="switchTab('search')">Поиск</div>
+        <div class="tab" id="tab-playlist" onclick="switchTab('playlist')">Любимое ❤️</div>
     </div>
 
     <div id="main-content">
@@ -39,210 +56,116 @@
         <div id="playlist-list" style="display: none;"></div>
     </div>
 
-    <audio id="audio-engine"></audio>
+    <iframe id="sc-iframe" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293"></iframe>
 
     <div class="player-bar" id="player-bar">
-        <div id="current-title" style="font-size: 14px; font-weight: bold; margin-bottom: 5px;"></div>
-        <div class="progress-container">
-            <span id="current-time" style="font-size:12px">0:00</span>
-            <input type="range" id="progress-bar" value="0" min="0" max="100">
-            <span id="total-time" style="font-size:12px">0:00</span>
-        </div>
+        <div id="current-title" style="font-size: 14px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
         <div class="controls">
-            <button onclick="playPrev()">⏮</button>
+            <button onclick="widget.prev()">⏮</button>
             <button onclick="togglePlay()" id="play-btn">▶️</button>
-            <button onclick="playNext()">⏭</button>
+            <button onclick="widget.next()">⏭</button>
         </div>
     </div>
 
     <script>
-        const YOUTUBE_API_KEY = 'AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4'; 
-        const INVIDIOUS_INSTANCES = [
-    'https://inv.riverside.rocks',
-    'https://invidious.asir.dev',
-    'https://iv.ggtyler.dev',
-    'https://invidious.lunar.icu',
-    'https://inv.tux.party'
-];
-        let currentInstance = INVIDIOUS_INSTANCES[0];
-
-        const audio = document.getElementById('audio-engine');
+        // Публичный Client ID (иногда их нужно обновлять)
+        const SC_CLIENT_ID = 'iZIs4mchue783BnuParD0ZduubtRHn7W'; 
+        
+        const tg = window.Telegram.WebApp;
+        const widget = SC.Widget(document.getElementById('sc-iframe'));
         let isPlaying = false;
         let myPlaylist = JSON.parse(localStorage.getItem('myPlaylist')) || [];
-        let currentQueue = [];
-        let currentIndex = -1;
 
-        // Инициализация Telegram
-        window.Telegram.WebApp.expand();
+        tg.expand();
 
-        // Поиск (оставляем через официальный API YouTube для точности)
+        // Поиск через публичный API SoundCloud
         async function searchMusic(query) {
-    const list = document.getElementById('results-list');
-    list.innerHTML = 'Загрузка...';
-    try {
-        // Ищем через API Invidious вместо Google
-        const res = await fetch(`${currentInstance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
-        const data = await res.json();
-        
-        list.innerHTML = '';
-        currentQueue = data.map(item => ({
-            id: item.videoId,
-            title: item.title,
-            thumb: item.videoThumbnails.find(t => t.quality === 'default')?.url || item.videoThumbnails[0].url
-        }));
-        
-        currentQueue.forEach((t, i) => renderTrack(t, list, i, true));
-    } catch (e) {
-        list.innerHTML = 'Ошибка поиска на сервере Invidious. Попробуйте позже.';
-    }
+            const list = document.getElementById('results-list');
+            list.innerHTML = 'Ищу треки...';
+            
+            try {
+                // Используем поисковый эндпоинт SoundCloud
+                const response = await fetch(`https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=${SC_CLIENT_ID}&limit=15`);
+                const data = await response.json();
+
+                list.innerHTML = '';
+                data.collection.forEach(track => {
+                    renderTrack(track, list, true);
+                });
+            } catch (e) {
+                list.innerHTML = 'Ошибка поиска. Возможно, нужно обновить Client ID.';
+                console.error(e);
+            }
         }
 
-        async function playTrack(id, title) {
-    const playerBar = document.getElementById('player-bar');
-    const titleTag = document.getElementById('current-title');
-    
-    titleTag.innerText = "Подготовка потока...";
-    playerBar.classList.add('active');
-
-    // Используем один из публичных API для получения прямой ссылки на аудио
-    // Например, через сервис y2mate или подобные (через прокси-запрос)
-    try {
-        // Мы будем использовать API-инстанс, который конвертирует YT в аудио поток на лету
-        const proxyUrl = `https://api.vevioz.com/api/button/mp3/${id}`; 
-        
-        // ВАЖНО: Вместо того чтобы парсить JSON, мы просто подсовываем ссылку
-        // Многие такие API отдают сразу страницу с кнопкой, но нам нужен прямой поток.
-        // Самый стабильный способ сейчас — использовать скрипт-парсер на бэкенде.
-        
-        // Для теста попробуй этот источник (он часто работает без ключей):
-        audio.src = `https://convert2mp3s.com/api/single/mp3?url=https://www.youtube.com/watch?v=${id}`;
-        
-        audio.play().catch(e => {
-            titleTag.innerText = "Ошибка воспроизведения. Попробуйте другой трек.";
-        });
-
-        titleTag.innerText = title;
-        isPlaying = true;
-        updatePlayBtn();
-    } catch (e) {
-        titleTag.innerText = "Сервер занят, попробуйте позже.";
-    }
-}
-
-        // Логика управления аудио
-        audio.ontimeupdate = () => {
-            const pct = (audio.currentTime / audio.duration) * 100;
-            document.getElementById('progress-bar').value = pct || 0;
-            document.getElementById('current-time').innerText = formatTime(audio.currentTime);
-            document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
-        };
-
-        audio.onended = () => playNext();
-
-        document.getElementById('progress-bar').oninput = function() {
-            audio.currentTime = (this.value / 100) * audio.duration;
-        };
-
-        function togglePlay() {
-            if (audio.paused) audio.play(); else audio.pause();
-            isPlaying = !audio.paused;
-            updatePlayBtn();
-        }
-
-        function updatePlayBtn() {
-            document.getElementById('play-btn').innerText = isPlaying ? '⏸' : '▶️';
-        }
-
-        function formatTime(s) {
-            const m = Math.floor(s / 60);
-            const sec = Math.floor(s % 60);
-            return `${m}:${sec < 10 ? '0' : ''}${sec}`;
-        }
-
-        // Функции навигации (Next/Prev) — такие же как в прошлом коде
-        function playAtIndex(index, fromSearch) {
-            if (!fromSearch) currentQueue = myPlaylist;
-            currentIndex = index;
-            const track = currentQueue[currentIndex];
-            playTrack(track.id, track.title);
-        }
-
-        function playNext() { if (currentIndex < currentQueue.length - 1) playAtIndex(currentIndex + 1, currentQueue !== myPlaylist); }
-        function playPrev() { if (currentIndex > 0) playAtIndex(currentIndex - 1, currentQueue !== myPlaylist); }
-
-        function renderTrack(track, container, index, isSearch) {
+        function renderTrack(track, container, isSearch) {
             const div = document.createElement('div');
             div.className = 'track-item';
+            const thumb = track.artwork_url || track.user.avatar_url || 'https://via.placeholder.com/45';
+            
             div.innerHTML = `
-                <img src="${track.thumb}" class="track-thumb" onclick="playAtIndex(${index}, ${isSearch})">
-                <div class="track-info" onclick="playAtIndex(${index}, ${isSearch})">
-                    <div style="font-size:14px;">${track.title}</div>
+                <img src="${thumb}" class="track-thumb" onclick="playTrack('${track.permalink_url}', '${track.title.replace(/'/g, "")}')">
+                <div class="track-info" onclick="playTrack('${track.permalink_url}', '${track.title.replace(/'/g, "")}')">
+                    <div style="font-size:14px; font-weight:bold;">${track.title}</div>
+                    <div style="font-size:12px; color:#aaa;">${track.user.username}</div>
                 </div>
-                ${isSearch ? `<button class="add-btn" onclick="addToPlaylist('${track.id}', '${track.title.replace(/'/g,"")}', '${track.thumb}')">+</button>` : ''}
+                ${isSearch ? `<button class="add-btn" onclick="addToPlaylist('${track.permalink_url}', '${track.title.replace(/'/g, "")}', '${thumb}')">+</button>` : ''}
             `;
             container.appendChild(div);
         }
 
-        function addToPlaylist(id, title, thumb) {
-            if (!myPlaylist.find(t => t.id === id)) {
-                myPlaylist.push({id, title, thumb});
-                localStorage.setItem('myPlaylist', JSON.stringify(myPlaylist));
-                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-            }
-        }
-
-        async function fetchWithFallback(query) {
-    for (let instance of INVIDIOUS_INSTANCES) {
-        try {
-            console.log(`Пробую сервер: ${instance}`);
-            const response = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, {
-                signal: AbortSignal.timeout(5000) // Ждем не более 5 секунд на сервер
+        function playTrack(url, title) {
+            widget.load(url, {
+                auto_play: true,
+                hide_related: true,
+                show_comments: false,
+                callback: () => {
+                    document.getElementById('current-title').innerText = title;
+                    document.getElementById('player-bar').classList.add('active');
+                    isPlaying = true;
+                    document.getElementById('play-btn').innerText = '⏸';
+                }
             });
-            
-            if (response.ok) {
-                currentInstance = instance; // Запоминаем рабочий сервер
-                return await response.json();
-            }
-        } catch (err) {
-            console.warn(`Сервер ${instance} не ответил, иду к следующему...`);
         }
-    }
-    throw new Error("Ни один сервер не ответил");
-}
 
-async function searchMusic(query) {
-    const list = document.getElementById('results-list');
-    list.innerHTML = 'Ищу рабочий сервер...';
-    
-    try {
-        const data = await fetchWithFallback(query);
-        list.innerHTML = '';
-        
-        currentQueue = data.map(item => ({
-            id: item.videoId,
-            title: item.title,
-            thumb: item.videoThumbnails ? item.videoThumbnails[0].url : ''
-        }));
+        function togglePlay() {
+            widget.toggle();
+            isPlaying = !isPlaying;
+            document.getElementById('play-btn').innerText = isPlaying ? '⏸' : '▶️';
+        }
 
-        currentQueue.forEach((t, i) => renderTrack(t, list, i, true));
-    } catch (e) {
-        list.innerHTML = 'Все сервера Invidious сейчас недоступны. Попробуйте через 5 минут.';
-    }
-}
+        // Плейлист (LocalStorage)
+        function addToPlaylist(url, title, thumb) {
+            if (!myPlaylist.find(t => t.url === url)) {
+                myPlaylist.push({url, title, thumb});
+                localStorage.setItem('myPlaylist', JSON.stringify(myPlaylist));
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        }
 
         function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
             document.getElementById('results-list').style.display = tab === 'search' ? 'block' : 'none';
             document.getElementById('playlist-list').style.display = tab === 'playlist' ? 'block' : 'none';
+            document.getElementById('tab-search').classList.toggle('active', tab === 'search');
+            document.getElementById('tab-playlist').classList.toggle('active', tab === 'playlist');
+            
             if (tab === 'playlist') {
                 const list = document.getElementById('playlist-list');
-                list.innerHTML = '';
-                myPlaylist.forEach((t, i) => renderTrack(t, list, i, false));
+                list.innerHTML = myPlaylist.length ? '' : '<p style="text-align:center">Тут пока пусто</p>';
+                myPlaylist.forEach(t => renderTrack({permalink_url: t.url, title: t.title, artwork_url: t.thumb, user: {username: ''}}, list, false));
             }
         }
 
-        document.getElementById('search-input').onkeypress = (e) => { if (e.key === 'Enter') searchMusic(e.target.value); };
+        document.getElementById('search-input').onkeypress = (e) => {
+            if (e.key === 'Enter') searchMusic(e.target.value);
+        };
+
+        // Слушаем события плеера для автопереключения
+        widget.bind(SC.Widget.Events.FINISH, () => {
+            // Здесь можно добавить логику переключения на следующий трек из очереди
+            console.log('Трек закончился');
+        });
+
     </script>
 </body>
 </html>
