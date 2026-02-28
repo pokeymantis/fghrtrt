@@ -98,31 +98,36 @@
         }
 
         async function playTrack(id, title) {
-            document.getElementById('current-title').innerText = "Загрузка потока...";
-            document.getElementById('player-bar').classList.add('active');
+    const playerBar = document.getElementById('player-bar');
+    const titleTag = document.getElementById('current-title');
+    
+    titleTag.innerText = "Подготовка потока...";
+    playerBar.classList.add('active');
 
-            // Получаем прямую ссылку на аудио через Invidious
-            try {
-                const res = await fetch(`${currentInstance}/api/v1/videos/${id}`);
-                const data = await res.json();
-                
-                // Ищем формат "audio/googlevideo" или просто самый легкий поток
-                const audioUrl = `${currentInstance}/latest_version?id=${id}&itag=140`; // itag 140 это обычно M4A аудио
-                
-                audio.src = audioUrl;
-                audio.play();
-                
-                document.getElementById('current-title').innerText = title;
-                isPlaying = true;
-                updatePlayBtn();
-                
-                localStorage.setItem('lastTrackId', id);
-                localStorage.setItem('lastTrackTitle', title);
-            } catch (e) {
-                document.getElementById('current-title').innerText = "Ошибка сервера. Пробую другой...";
-                // Здесь можно добавить логику переключения instance
-            }
-        }
+    // Используем один из публичных API для получения прямой ссылки на аудио
+    // Например, через сервис y2mate или подобные (через прокси-запрос)
+    try {
+        // Мы будем использовать API-инстанс, который конвертирует YT в аудио поток на лету
+        const proxyUrl = `https://api.vevioz.com/api/button/mp3/${id}`; 
+        
+        // ВАЖНО: Вместо того чтобы парсить JSON, мы просто подсовываем ссылку
+        // Многие такие API отдают сразу страницу с кнопкой, но нам нужен прямой поток.
+        // Самый стабильный способ сейчас — использовать скрипт-парсер на бэкенде.
+        
+        // Для теста попробуй этот источник (он часто работает без ключей):
+        audio.src = `https://convert2mp3s.com/api/single/mp3?url=https://www.youtube.com/watch?v=${id}`;
+        
+        audio.play().catch(e => {
+            titleTag.innerText = "Ошибка воспроизведения. Попробуйте другой трек.";
+        });
+
+        titleTag.innerText = title;
+        isPlaying = true;
+        updatePlayBtn();
+    } catch (e) {
+        titleTag.innerText = "Сервер занят, попробуйте позже.";
+    }
+}
 
         // Логика управления аудио
         audio.ontimeupdate = () => {
