@@ -4,289 +4,188 @@ AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Telegram Music Hub</title>
+    <title>TG Music Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://www.youtube.com/iframe_api"></script>
     
     <style>
         :root {
-            /* Переменные темы Telegram (или дефолтные) */
             --bg-color: var(--tg-theme-bg-color, #121212);
             --text-color: var(--tg-theme-text-color, #ffffff);
-            --hint-color: var(--tg-theme-hint-color, #b3b3b3);
-            --accent-color: var(--tg-theme-button-color, #1db954); /* Зеленый как у Spotify */
-            --secondary-bg: var(--tg-theme-secondary-bg-color, #1e1e1e);
+            --accent-color: #1db954; /* Spotify Green */
+            --secondary-bg: #1e1e1e;
         }
 
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden; /* Основной экран не скроллится */
+            font-family: sans-serif;
+            margin: 0; padding: 15px;
+            display: flex; flex-direction: column; height: 100vh;
         }
 
-        /* Поиск */
-        .search-container {
-            position: sticky;
-            top: 0;
-            background-color: var(--bg-color);
-            padding-bottom: 10px;
-            z-index: 10;
-        }
-
+        .search-container { margin-bottom: 15px; }
         #search-input {
-            width: 100%;
-            padding: 12px 15px;
-            border-radius: 25px;
-            border: 1px solid var(--secondary-bg);
-            background-color: var(--secondary-bg);
-            color: var(--text-color);
-            font-size: 16px;
-            box-sizing: border-box;
-            transition: border-color 0.2s;
+            width: 100%; padding: 12px; border-radius: 20px;
+            border: none; background: var(--secondary-bg); color: white;
         }
 
-        #search-input:focus {
-            outline: none;
-            border-color: var(--accent-color);
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .tab { 
+            padding: 8px 15px; border-radius: 15px; cursor: pointer; 
+            background: var(--secondary-bg); font-size: 14px;
         }
+        .tab.active { background: var(--accent-color); }
 
-        /* Список результатов */
-        #results-list {
-            flex-grow: 1;
-            overflow-y: auto; /* Скроллится только список */
-            margin-top: 10px;
-            padding-bottom: 80px; /* Место для плеера */
-        }
+        #main-content { flex-grow: 1; overflow-y: auto; padding-bottom: 100px; }
 
         .track-item {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.2s;
+            display: flex; align-items: center; padding: 10px;
+            border-bottom: 1px solid #333;
         }
+        .track-thumb { width: 45px; height: 45px; border-radius: 5px; margin-right: 12px; }
+        .track-info { flex-grow: 1; }
+        .add-btn { background: none; border: none; color: var(--accent-color); font-size: 20px; cursor: pointer; }
 
-        .track-item:active {
-            background-color: var(--secondary-bg);
-        }
-
-        .track-thumb {
-            width: 50px;
-            height: 50px;
-            border-radius: 4px;
-            margin-right: 15px;
-            background-size: cover;
-            background-position: center;
-        }
-
-        .track-info {
-            flex-grow: 1;
-        }
-
-        .track-title {
-            font-size: 16px;
-            font-weight: 500;
-            margin-bottom: 2px;
-            /* Обрезка длинного текста */
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .track-channel {
-            font-size: 14px;
-            color: var(--hint-color);
-        }
-
-        /* Мини-плеер снизу */
         .player-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: var(--secondary-bg);
-            padding: 10px 15px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
-            transform: translateY(100%); /* Спрятан по умолчанию */
-            transition: transform 0.3s ease-out;
-            z-index: 20;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: #282828; padding: 10px 15px;
+            display: none; align-items: center; justify-content: space-between;
         }
-
-        .player-bar.active {
-            transform: translateY(0);
-        }
-
-        .current-track-info {
-            display: flex;
-            align-items: center;
-            max-width: 70%;
-        }
-
-        .controls button {
-            background: none;
-            border: none;
-            color: var(--text-color);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0 10px;
-        }
-
-        /* Прячем сам Iframe */
-        #yt-player { position: absolute; top: -9999px; }
-
-        /* Лоадер */
-        .loader { color: var(--hint-color); text-align: center; margin-top: 20px; display: none; }
+        .player-bar.active { display: flex; }
     </style>
 </head>
 <body>
 
     <div class="search-container">
-        <input type="text" id="search-input" placeholder="Поиск музыки в YouTube...">
+        <input type="text" id="search-input" placeholder="Поиск в YouTube...">
     </div>
 
-    <div class="loader" id="loader">Поиск...</div>
-    <div id="results-list">
-        </div>
+    <div class="tabs">
+        <div class="tab active" id="tab-search" onclick="switchTab('search')">Поиск</div>
+        <div class="tab" id="tab-playlist" onclick="switchTab('playlist')">Плейлист ❤️</div>
+    </div>
+
+    <div id="main-content">
+        <div id="results-list"></div>
+        <div id="playlist-list" style="display: none;"></div>
+    </div>
 
     <div id="yt-player"></div>
 
     <div class="player-bar" id="player-bar">
-        <div class="current-track-info">
-            <div class="track-thumb" id="current-thumb" style="width: 40px; height: 40px; margin-right: 10px;"></div>
-            <div class="track-info">
-                <div class="track-title" id="current-title" style="font-size: 14px;"></div>
-            </div>
-        </div>
-        <div class="controls">
-            <button onclick="togglePlay()" id="play-btn">⏸</button>
-        </div>
+        <div id="current-title" style="font-size: 13px; max-width: 70%;"></div>
+        <button onclick="togglePlay()" id="play-btn" style="background:none; border:none; color:white; font-size:24px;">⏸</button>
     </div>
 
     <script>
-        // --- КОНФИГУРАЦИЯ ---
-        // !!! ВСТАВЬ СВОЙ КЛЮЧ СЮДА !!!
         const YOUTUBE_API_KEY = 'AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4'; 
-        // --------------------
-
-        const tg = window.Telegram.WebApp;
-        tg.expand(); // На весь экран
-        tg.ready();
-
         let ytPlayer;
         let isPlaying = false;
+        let currentTab = 'search';
+        
+        // Массив для плейлиста
+        let myPlaylist = JSON.parse(localStorage.getItem('myPlaylist')) || [];
 
-        // Инициализация YouTube API
         function onYouTubeIframeAPIReady() {
             ytPlayer = new YT.Player('yt-player', {
                 height: '0', width: '0', videoId: '',
-                events: {
-                    'onReady': () => console.log('YT Готов'),
-                    'onStateChange': onPlayerStateChange
-                }
+                events: { 'onReady': loadLastTrack }
             });
         }
 
-        // Поиск при нажатии Enter
-        document.getElementById('search-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                searchMusic(this.value);
-            }
-        });
+        // Сохранение последнего трека
+        function saveLastTrack(id, title) {
+            localStorage.setItem('lastTrackId', id);
+            localStorage.setItem('lastTrackTitle', title);
+        }
 
-        // Функция поиска (общается с YouTube API)
-        async function searchMusic(query) {
-            if (!query) return;
-            if (YOUTUBE_API_KEY === 'ЗАМЕНИ_МЕНЯ_НА_API_KEY') {
-                alert('Сначала добавь YouTube API Key в код!');
-                return;
-            }
-
-            const loader = document.getElementById('loader');
-            const list = document.getElementById('results-list');
-            
-            list.innerHTML = '';
-            loader.style.display = 'block';
-
-            try {
-                const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=15&key=${YOUTUBE_API_KEY}`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
-
-                loader.style.display = 'none';
-
-                if (data.items) {
-                    data.items.forEach(item => {
-                        createTrackItem(item);
-                    });
-                }
-            } catch (error) {
-                console.error(error);
-                loader.innerText = 'Ошибка поиска';
+        // Загрузка последнего трека при входе
+        function loadLastTrack() {
+            const id = localStorage.getItem('lastTrackId');
+            const title = localStorage.getItem('lastTrackTitle');
+            if (id) {
+                document.getElementById('current-title').innerText = "Ранее: " + title;
+                document.getElementById('player-bar').classList.add('active');
+                ytPlayer.cueVideoById(id); // Подготавливает, но не играет сразу
             }
         }
 
-        // Создание элемента трека в списке
-        function createTrackItem(item) {
+        async function searchMusic(query) {
             const list = document.getElementById('results-list');
-            const snippet = item.snippet;
-            const videoId = item.id.videoId;
+            list.innerHTML = 'Загрузка...';
+            const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            list.innerHTML = '';
+            data.items.forEach(item => renderTrack(item, list, true));
+        }
+
+        function renderTrack(item, container, isSearch) {
+            const videoId = isSearch ? item.id.videoId : item.id;
+            const title = isSearch ? item.snippet.title : item.title;
+            const thumb = isSearch ? item.snippet.thumbnails.default.url : item.thumb;
 
             const div = document.createElement('div');
             div.className = 'track-item';
-            div.onclick = () => playTrack(videoId, snippet.title, snippet.thumbnails.default.url);
-
             div.innerHTML = `
-                <div class="track-thumb" style="background-image: url('${snippet.thumbnails.default.url}')"></div>
-                <div class="track-info">
-                    <div class="track-title">${snippet.title}</div>
-                    <div class="track-channel">${snippet.channelTitle}</div>
+                <img src="${thumb}" class="track-thumb" onclick="playTrack('${videoId}', '${title.replace(/'/g, "")}')">
+                <div class="track-info" onclick="playTrack('${videoId}', '${title.replace(/'/g, "")}')">
+                    <div style="font-weight:bold; font-size:14px;">${title}</div>
                 </div>
+                ${isSearch ? `<button class="add-btn" onclick="addToPlaylist('${videoId}', '${title.replace(/'/g, "")}', '${thumb}')">+</button>` : 
+                `<button class="add-btn" style="color:red" onclick="removeFromPlaylist('${videoId}')">×</button>`}
             `;
-            list.appendChild(div);
+            container.appendChild(div);
         }
 
-        // Логика воспроизведения
-        function playTrack(videoId, title, thumbUrl) {
-            ytPlayer.loadVideoById(videoId);
+        function playTrack(id, title) {
+            ytPlayer.loadVideoById(id);
             ytPlayer.playVideo();
             isPlaying = true;
-
-            // Обновляем панель плеера
             document.getElementById('current-title').innerText = title;
-            document.getElementById('current-thumb').style.backgroundimage = `url('${thumbUrl}')`;
             document.getElementById('player-bar').classList.add('active');
             document.getElementById('play-btn').innerText = '⏸';
+            saveLastTrack(id, title);
         }
+
+        function addToPlaylist(id, title, thumb) {
+            if (!myPlaylist.find(t => t.id === id)) {
+                myPlaylist.push({id, title, thumb});
+                localStorage.setItem('myPlaylist', JSON.stringify(myPlaylist));
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        function removeFromPlaylist(id) {
+            myPlaylist = myPlaylist.filter(t => t.id !== id);
+            localStorage.setItem('myPlaylist', JSON.stringify(myPlaylist));
+            renderPlaylist();
+        }
+
+        function renderPlaylist() {
+            const list = document.getElementById('playlist-list');
+            list.innerHTML = myPlaylist.length ? '' : '<p style="text-align:center">Плейлист пуст</p>';
+            myPlaylist.forEach(track => renderTrack(track, list, false));
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-search').classList.toggle('active', tab === 'search');
+            document.getElementById('tab-playlist').classList.toggle('active', tab === 'playlist');
+            document.getElementById('results-list').style.display = tab === 'search' ? 'block' : 'none';
+            document.getElementById('playlist-list').style.display = tab === 'playlist' ? 'block' : 'none';
+            if (tab === 'playlist') renderPlaylist();
+        }
+
+        document.getElementById('search-input').onkeypress = (e) => {
+            if (e.key === 'Enter') searchMusic(e.target.value);
+        };
 
         function togglePlay() {
-            if (isPlaying) {
-                ytPlayer.pauseVideo();
-                document.getElementById('play-btn').innerText = '▶️';
-            } else {
-                ytPlayer.playVideo();
-                document.getElementById('play-btn').innerText = '⏸';
-            }
+            if (isPlaying) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
             isPlaying = !isPlaying;
-        }
-
-        function onPlayerStateChange(event) {
-            // Если видео закончилось (YT.PlayerState.ENDED = 0)
-            if (event.data === 0) {
-                document.getElementById('play-btn').innerText = '▶️';
-                isPlaying = false;
-            }
+            document.getElementById('play-btn').innerText = isPlaying ? '⏸' : '▶️';
         }
     </script>
 </body>
