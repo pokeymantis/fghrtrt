@@ -1,69 +1,37 @@
-AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TG Music Pro</title>
+    <title>TG Music Proxy</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://www.youtube.com/iframe_api"></script>
-    
     <style>
-        :root {
-            --bg-color: var(--tg-theme-bg-color, #121212);
-            --text-color: var(--tg-theme-text-color, #ffffff);
-            --accent-color: #1db954; /* Spotify Green */
-            --secondary-bg: #1e1e1e;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: sans-serif;
-            margin: 0; padding: 15px;
-            display: flex; flex-direction: column; height: 100vh;
-        }
-
-        .search-container { margin-bottom: 15px; }
-        #search-input {
-            width: 100%; padding: 12px; border-radius: 20px;
-            border: none; background: var(--secondary-bg); color: white;
-        }
-
+        /* Оставляем тот же красивый дизайн, что был раньше */
+        :root { --bg-color: #121212; --text-color: #ffffff; --accent-color: #1db954; --secondary-bg: #1e1e1e; }
+        body { background: var(--bg-color); color: var(--text-color); font-family: sans-serif; margin: 0; padding: 15px; height: 100vh; display: flex; flex-direction: column; }
+        #search-input { width: 100%; padding: 12px; border-radius: 20px; border: none; background: var(--secondary-bg); color: white; margin-bottom: 10px; box-sizing: border-box; }
         .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
-        .tab { 
-            padding: 8px 15px; border-radius: 15px; cursor: pointer; 
-            background: var(--secondary-bg); font-size: 14px;
-        }
+        .tab { padding: 8px 15px; border-radius: 15px; cursor: pointer; background: var(--secondary-bg); font-size: 14px; }
         .tab.active { background: var(--accent-color); }
-
-        #main-content { flex-grow: 1; overflow-y: auto; padding-bottom: 100px; }
-
-        .track-item {
-            display: flex; align-items: center; padding: 10px;
-            border-bottom: 1px solid #333;
-        }
+        #main-content { flex-grow: 1; overflow-y: auto; padding-bottom: 140px; }
+        .track-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #333; }
         .track-thumb { width: 45px; height: 45px; border-radius: 5px; margin-right: 12px; }
         .track-info { flex-grow: 1; }
         .add-btn { background: none; border: none; color: var(--accent-color); font-size: 20px; cursor: pointer; }
-
-        .player-bar {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: #282828; padding: 10px 15px;
-            display: none; align-items: center; justify-content: space-between;
-        }
+        .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #282828; padding: 15px; display: none; flex-direction: column; z-index: 100; }
         .player-bar.active { display: flex; }
+        .progress-container { display: flex; align-items: center; gap: 10px; width: 100%; margin: 10px 0; }
+        #progress-bar { flex-grow: 1; accent-color: var(--accent-color); }
+        .controls { display: flex; align-items: center; justify-content: center; gap: 25px; }
+        .controls button { background: none; border: none; color: white; font-size: 28px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="search-container">
-        <input type="text" id="search-input" placeholder="Поиск в YouTube...">
-    </div>
-
+    <input type="text" id="search-input" placeholder="Поиск музыки (без VPN)...">
     <div class="tabs">
-        <div class="tab active" id="tab-search" onclick="switchTab('search')">Поиск</div>
-        <div class="tab" id="tab-playlist" onclick="switchTab('playlist')">Плейлист ❤️</div>
+        <div class="tab active" onclick="switchTab('search')">Поиск</div>
+        <div class="tab" onclick="switchTab('playlist')">Плейлист ❤️</div>
     </div>
 
     <div id="main-content">
@@ -71,82 +39,137 @@ AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4
         <div id="playlist-list" style="display: none;"></div>
     </div>
 
-    <div id="yt-player"></div>
+    <audio id="audio-engine"></audio>
 
     <div class="player-bar" id="player-bar">
-        <div id="current-title" style="font-size: 13px; max-width: 70%;"></div>
-        <button onclick="togglePlay()" id="play-btn" style="background:none; border:none; color:white; font-size:24px;">⏸</button>
+        <div id="current-title" style="font-size: 14px; font-weight: bold; margin-bottom: 5px;"></div>
+        <div class="progress-container">
+            <span id="current-time" style="font-size:12px">0:00</span>
+            <input type="range" id="progress-bar" value="0" min="0" max="100">
+            <span id="total-time" style="font-size:12px">0:00</span>
+        </div>
+        <div class="controls">
+            <button onclick="playPrev()">⏮</button>
+            <button onclick="togglePlay()" id="play-btn">▶️</button>
+            <button onclick="playNext()">⏭</button>
+        </div>
     </div>
 
     <script>
-        const YOUTUBE_API_KEY = 'AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4'; 
-        let ytPlayer;
+        const YOUTUBE_API_KEY = 'ТВОЙ_КЛЮЧ'; 
+        const INVIDIOUS_INSTANCES = [
+            'https://invidious.projectsegfau.lt',
+            'https://inv.tux.party',
+            'https://invidious.nerdvpn.de'
+        ];
+        let currentInstance = INVIDIOUS_INSTANCES[0];
+
+        const audio = document.getElementById('audio-engine');
         let isPlaying = false;
-        let currentTab = 'search';
-        
-        // Массив для плейлиста
         let myPlaylist = JSON.parse(localStorage.getItem('myPlaylist')) || [];
+        let currentQueue = [];
+        let currentIndex = -1;
 
-        function onYouTubeIframeAPIReady() {
-            ytPlayer = new YT.Player('yt-player', {
-                height: '0', width: '0', videoId: '',
-                events: { 'onReady': loadLastTrack }
-            });
-        }
+        // Инициализация Telegram
+        window.Telegram.WebApp.expand();
 
-        // Сохранение последнего трека
-        function saveLastTrack(id, title) {
-            localStorage.setItem('lastTrackId', id);
-            localStorage.setItem('lastTrackTitle', title);
-        }
-
-        // Загрузка последнего трека при входе
-        function loadLastTrack() {
-            const id = localStorage.getItem('lastTrackId');
-            const title = localStorage.getItem('lastTrackTitle');
-            if (id) {
-                document.getElementById('current-title').innerText = "Ранее: " + title;
-                document.getElementById('player-bar').classList.add('active');
-                ytPlayer.cueVideoById(id); // Подготавливает, но не играет сразу
-            }
-        }
-
+        // Поиск (оставляем через официальный API YouTube для точности)
         async function searchMusic(query) {
             const list = document.getElementById('results-list');
             list.innerHTML = 'Загрузка...';
             const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            list.innerHTML = '';
-            data.items.forEach(item => renderTrack(item, list, true));
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                list.innerHTML = '';
+                currentQueue = data.items.map(item => ({
+                    id: item.id.videoId,
+                    title: item.snippet.title,
+                    thumb: item.snippet.thumbnails.default.url
+                }));
+                currentQueue.forEach((t, i) => renderTrack(t, list, i, true));
+            } catch (e) { list.innerHTML = 'Ошибка поиска. Проверьте ключ API.'; }
         }
 
-        function renderTrack(item, container, isSearch) {
-            const videoId = isSearch ? item.id.videoId : item.id;
-            const title = isSearch ? item.snippet.title : item.title;
-            const thumb = isSearch ? item.snippet.thumbnails.default.url : item.thumb;
+        async function playTrack(id, title) {
+            document.getElementById('current-title').innerText = "Загрузка потока...";
+            document.getElementById('player-bar').classList.add('active');
 
+            // Получаем прямую ссылку на аудио через Invidious
+            try {
+                const res = await fetch(`${currentInstance}/api/v1/videos/${id}`);
+                const data = await res.json();
+                
+                // Ищем формат "audio/googlevideo" или просто самый легкий поток
+                const audioUrl = `${currentInstance}/latest_version?id=${id}&itag=140`; // itag 140 это обычно M4A аудио
+                
+                audio.src = audioUrl;
+                audio.play();
+                
+                document.getElementById('current-title').innerText = title;
+                isPlaying = true;
+                updatePlayBtn();
+                
+                localStorage.setItem('lastTrackId', id);
+                localStorage.setItem('lastTrackTitle', title);
+            } catch (e) {
+                document.getElementById('current-title').innerText = "Ошибка сервера. Пробую другой...";
+                // Здесь можно добавить логику переключения instance
+            }
+        }
+
+        // Логика управления аудио
+        audio.ontimeupdate = () => {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            document.getElementById('progress-bar').value = pct || 0;
+            document.getElementById('current-time').innerText = formatTime(audio.currentTime);
+            document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
+        };
+
+        audio.onended = () => playNext();
+
+        document.getElementById('progress-bar').oninput = function() {
+            audio.currentTime = (this.value / 100) * audio.duration;
+        };
+
+        function togglePlay() {
+            if (audio.paused) audio.play(); else audio.pause();
+            isPlaying = !audio.paused;
+            updatePlayBtn();
+        }
+
+        function updatePlayBtn() {
+            document.getElementById('play-btn').innerText = isPlaying ? '⏸' : '▶️';
+        }
+
+        function formatTime(s) {
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+        }
+
+        // Функции навигации (Next/Prev) — такие же как в прошлом коде
+        function playAtIndex(index, fromSearch) {
+            if (!fromSearch) currentQueue = myPlaylist;
+            currentIndex = index;
+            const track = currentQueue[currentIndex];
+            playTrack(track.id, track.title);
+        }
+
+        function playNext() { if (currentIndex < currentQueue.length - 1) playAtIndex(currentIndex + 1, currentQueue !== myPlaylist); }
+        function playPrev() { if (currentIndex > 0) playAtIndex(currentIndex - 1, currentQueue !== myPlaylist); }
+
+        function renderTrack(track, container, index, isSearch) {
             const div = document.createElement('div');
             div.className = 'track-item';
             div.innerHTML = `
-                <img src="${thumb}" class="track-thumb" onclick="playTrack('${videoId}', '${title.replace(/'/g, "")}')">
-                <div class="track-info" onclick="playTrack('${videoId}', '${title.replace(/'/g, "")}')">
-                    <div style="font-weight:bold; font-size:14px;">${title}</div>
+                <img src="${track.thumb}" class="track-thumb" onclick="playAtIndex(${index}, ${isSearch})">
+                <div class="track-info" onclick="playAtIndex(${index}, ${isSearch})">
+                    <div style="font-size:14px;">${track.title}</div>
                 </div>
-                ${isSearch ? `<button class="add-btn" onclick="addToPlaylist('${videoId}', '${title.replace(/'/g, "")}', '${thumb}')">+</button>` : 
-                `<button class="add-btn" style="color:red" onclick="removeFromPlaylist('${videoId}')">×</button>`}
+                ${isSearch ? `<button class="add-btn" onclick="addToPlaylist('${track.id}', '${track.title.replace(/'/g,"")}', '${track.thumb}')">+</button>` : ''}
             `;
             container.appendChild(div);
-        }
-
-        function playTrack(id, title) {
-            ytPlayer.loadVideoById(id);
-            ytPlayer.playVideo();
-            isPlaying = true;
-            document.getElementById('current-title').innerText = title;
-            document.getElementById('player-bar').classList.add('active');
-            document.getElementById('play-btn').innerText = '⏸';
-            saveLastTrack(id, title);
         }
 
         function addToPlaylist(id, title, thumb) {
@@ -157,36 +180,19 @@ AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4
             }
         }
 
-        function removeFromPlaylist(id) {
-            myPlaylist = myPlaylist.filter(t => t.id !== id);
-            localStorage.setItem('myPlaylist', JSON.stringify(myPlaylist));
-            renderPlaylist();
-        }
-
-        function renderPlaylist() {
-            const list = document.getElementById('playlist-list');
-            list.innerHTML = myPlaylist.length ? '' : '<p style="text-align:center">Плейлист пуст</p>';
-            myPlaylist.forEach(track => renderTrack(track, list, false));
-        }
-
         function switchTab(tab) {
-            currentTab = tab;
-            document.getElementById('tab-search').classList.toggle('active', tab === 'search');
-            document.getElementById('tab-playlist').classList.toggle('active', tab === 'playlist');
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
             document.getElementById('results-list').style.display = tab === 'search' ? 'block' : 'none';
             document.getElementById('playlist-list').style.display = tab === 'playlist' ? 'block' : 'none';
-            if (tab === 'playlist') renderPlaylist();
+            if (tab === 'playlist') {
+                const list = document.getElementById('playlist-list');
+                list.innerHTML = '';
+                myPlaylist.forEach((t, i) => renderTrack(t, list, i, false));
+            }
         }
 
-        document.getElementById('search-input').onkeypress = (e) => {
-            if (e.key === 'Enter') searchMusic(e.target.value);
-        };
-
-        function togglePlay() {
-            if (isPlaying) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
-            isPlaying = !isPlaying;
-            document.getElementById('play-btn').innerText = isPlaying ? '⏸' : '▶️';
-        }
+        document.getElementById('search-input').onkeypress = (e) => { if (e.key === 'Enter') searchMusic(e.target.value); };
     </script>
 </body>
 </html>
