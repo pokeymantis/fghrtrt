@@ -75,20 +75,24 @@
 
         // Поиск (оставляем через официальный API YouTube для точности)
         async function searchMusic(query) {
-            const list = document.getElementById('results-list');
-            list.innerHTML = 'Загрузка...';
-            const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
-            try {
-                const res = await fetch(url);
-                const data = await res.json();
-                list.innerHTML = '';
-                currentQueue = data.items.map(item => ({
-                    id: item.id.videoId,
-                    title: item.snippet.title,
-                    thumb: item.snippet.thumbnails.default.url
-                }));
-                currentQueue.forEach((t, i) => renderTrack(t, list, i, true));
-            } catch (e) { list.innerHTML = 'Ошибка поиска. Проверьте ключ API.'; }
+    const list = document.getElementById('results-list');
+    list.innerHTML = 'Загрузка...';
+    try {
+        // Ищем через API Invidious вместо Google
+        const res = await fetch(`${currentInstance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
+        const data = await res.json();
+        
+        list.innerHTML = '';
+        currentQueue = data.map(item => ({
+            id: item.videoId,
+            title: item.title,
+            thumb: item.videoThumbnails.find(t => t.quality === 'default')?.url || item.videoThumbnails[0].url
+        }));
+        
+        currentQueue.forEach((t, i) => renderTrack(t, list, i, true));
+    } catch (e) {
+        list.innerHTML = 'Ошибка поиска на сервере Invidious. Попробуйте позже.';
+    }
         }
 
         async function playTrack(id, title) {
