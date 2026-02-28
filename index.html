@@ -58,10 +58,11 @@
     <script>
         const YOUTUBE_API_KEY = 'AIzaSyBXH_K-qTz_SfzupTeRfYUATc5d_wOzaV4'; 
         const INVIDIOUS_INSTANCES = [
-    'https://invidious.flokinet.to',
     'https://inv.riverside.rocks',
+    'https://invidious.asir.dev',
     'https://iv.ggtyler.dev',
-    'https://invidious.no-logs.com'
+    'https://invidious.lunar.icu',
+    'https://inv.tux.party'
 ];
         let currentInstance = INVIDIOUS_INSTANCES[0];
 
@@ -184,6 +185,45 @@
                 window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
             }
         }
+
+        async function fetchWithFallback(query) {
+    for (let instance of INVIDIOUS_INSTANCES) {
+        try {
+            console.log(`Пробую сервер: ${instance}`);
+            const response = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, {
+                signal: AbortSignal.timeout(5000) // Ждем не более 5 секунд на сервер
+            });
+            
+            if (response.ok) {
+                currentInstance = instance; // Запоминаем рабочий сервер
+                return await response.json();
+            }
+        } catch (err) {
+            console.warn(`Сервер ${instance} не ответил, иду к следующему...`);
+        }
+    }
+    throw new Error("Ни один сервер не ответил");
+}
+
+async function searchMusic(query) {
+    const list = document.getElementById('results-list');
+    list.innerHTML = 'Ищу рабочий сервер...';
+    
+    try {
+        const data = await fetchWithFallback(query);
+        list.innerHTML = '';
+        
+        currentQueue = data.map(item => ({
+            id: item.videoId,
+            title: item.title,
+            thumb: item.videoThumbnails ? item.videoThumbnails[0].url : ''
+        }));
+
+        currentQueue.forEach((t, i) => renderTrack(t, list, i, true));
+    } catch (e) {
+        list.innerHTML = 'Все сервера Invidious сейчас недоступны. Попробуйте через 5 минут.';
+    }
+}
 
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
