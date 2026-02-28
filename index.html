@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG Music Player</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://w.soundcloud.com/player/api.js"></script>
+    
+    <style>
+        body {
+            background-color: var(--tg-theme-bg-color, #1e1e1e);
+            color: var(--tg-theme-text-color, #ffffff);
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        button {
+            background-color: var(--tg-theme-button-color, #3390ec);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            margin: 10px;
+            cursor: pointer;
+            width: 80%;
+        }
+        /* Прячем оригинальные плееры, оставляя только звук */
+        #players { position: absolute; top: -9999px; left: -9999px; }
+    </style>
+</head>
+<body>
+
+    <h2>Мой Музыкальный Плеер</h2>
+    <p id="track-name">Ничего не играет</p>
+
+    <button onclick="playYouTube('ScMzIvxBSi4')">▶️ Включить хит с YouTube</button>
+    <button onclick="playSoundCloud('https://api.soundcloud.com/tracks/293')">▶️ Включить трек с SoundCloud</button>
+    
+    <br><br>
+    <button onclick="pauseAll()" style="background-color: #ff4d4d;">⏸ Пауза</button>
+
+    <div id="players">
+        <div id="yt-player"></div>
+        <iframe id="sc-player" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" 
+                src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293&auto_play=false">
+        </iframe>
+    </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Открываем на весь экран
+
+        // --- Настройка YouTube ---
+        let ytPlayer;
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('yt-player', {
+                height: '0', width: '0',
+                videoId: '', // Пусто при старте
+                events: {
+                    'onReady': () => console.log('YouTube готов')
+                }
+            });
+        }
+
+        function playYouTube(videoId) {
+            pauseAll();
+            document.getElementById('track-name').innerText = "Играет с YouTube...";
+            ytPlayer.loadVideoById(videoId);
+            ytPlayer.playVideo();
+        }
+
+        // --- Настройка SoundCloud ---
+        let scPlayer = SC.Widget(document.getElementById('sc-player'));
+
+        function playSoundCloud(trackUrl) {
+            pauseAll();
+            document.getElementById('track-name').innerText = "Играет с SoundCloud...";
+            scPlayer.load(trackUrl, {
+                auto_play: true,
+                callback: function() {
+                    scPlayer.play();
+                }
+            });
+        }
+
+        // --- Общее управление ---
+        function pauseAll() {
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            scPlayer.pause();
+            document.getElementById('track-name').innerText = "Пауза";
+        }
+    </script>
+</body>
+</html>
